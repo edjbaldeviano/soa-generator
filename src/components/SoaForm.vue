@@ -34,7 +34,7 @@
           type="text"
           placeholder="Type or select client"
           autocomplete="off"
-          @change="onClientSelect"
+          @input="onClientSelect"
         />
         <datalist id="clients-datalist">
           <option v-for="c in CLIENTS" :key="c.name" :value="c.name" />
@@ -53,7 +53,7 @@
     <!-- Passengers -->
     <section class="form-section">
       <h2>Passengers</h2>
-      <PassengerList v-model="form.passengers" />
+      <PassengerList :model-value="form.passengers" @update:model-value="updatePassengers" />
     </section>
 
     <!-- Airfare-only: Booking refs + Itinerary -->
@@ -91,7 +91,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref } from 'vue'
 import { CLIENTS } from '../data/clients.js'
 import { generateSoa } from '../composables/useDocxGenerator.js'
 import PassengerList from './PassengerList.vue'
@@ -123,14 +123,26 @@ const form = reactive({
 const errorMsg = ref('')
 const generating = ref(false)
 
-// Keep refs array length in sync with passengers
-watch(
-  () => form.passengers.length,
-  (newLen) => {
-    while (form.refs.length < newLen) form.refs.push('')
-    while (form.refs.length > newLen) form.refs.pop()
-  },
-)
+function updatePassengers(newPassengers) {
+  const oldLen = form.passengers.length
+  const newLen = newPassengers.length
+
+  if (newLen < oldLen) {
+    // Detect the removed index by finding first position where arrays diverge
+    let removedIdx = oldLen - 1
+    for (let i = 0; i < newLen; i++) {
+      if (newPassengers[i] !== form.passengers[i]) {
+        removedIdx = i
+        break
+      }
+    }
+    form.refs.splice(removedIdx, 1)
+  } else if (newLen > oldLen) {
+    form.refs.push('')
+  }
+
+  form.passengers = newPassengers
+}
 
 function onClientSelect() {
   const match = CLIENTS.find((c) => c.name === form.clientName)
@@ -141,6 +153,12 @@ function validate() {
   if (!form.clientName.trim()) return 'Client name is required.'
   if (!form.date) return 'Date is required.'
   if (form.passengers.some((p) => !p.trim())) return 'All passenger names must be filled in.'
+  if (form.type === 'airfare') {
+    if (!form.itinerary.airline.trim() || !form.itinerary.route.trim() || !form.itinerary.travelDate.trim()) {
+      return 'Airline, route, and travel date are required for airfare SOAs.'
+    }
+    if (form.refs.some((r) => !r.trim())) return 'All booking references must be filled in.'
+  }
   if (form.fees.length === 0) return 'At least one fee row is required.'
   if (form.fees.some((f) => !f.description.trim())) return 'All fee descriptions must be filled in.'
   return null
