@@ -11,23 +11,30 @@ import { amountToWords } from './useAmountWords.js'
 const FONT = 'Arial'
 const FONT_SIZE = 20 // half-points → 10pt
 
-const BORDER_DEF = { style: BorderStyle.SINGLE, size: 4, color: '000000' }
-const ALL_BORDERS = {
-  top: BORDER_DEF,
-  bottom: BORDER_DEF,
-  left: BORDER_DEF,
-  right: BORDER_DEF,
-}
 const NO_BORDERS = {
-  top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  top:    { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
   bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-  left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-  right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  left:   { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  right:  { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+}
+
+const NO_TABLE_BORDERS = {
+  top:              { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  bottom:           { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  left:             { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  right:            { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+  insideVertical:   { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
 }
 
 const MONTHS = [
   'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
   'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+]
+
+const SHORT_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
 // ─── Exported helpers (also used for testing) ─────────────────────────────────
@@ -37,11 +44,37 @@ export function formatDate(dateStr) {
   return `${MONTHS[month - 1]} ${day}, ${year}`
 }
 
+// Converts YYYY-MM-DD → "May 30" (for itinerary display)
+function formatItineraryDate(dateStr) {
+  if (!dateStr) return ''
+  const [, month, day] = dateStr.split('-').map(Number)
+  return `${SHORT_MONTHS[month - 1]} ${day}`
+}
+
+// Converts HH:MM (from <input type="time">) → "HHMM"
+function formatTime(timeStr) {
+  return (timeStr || '').replace(':', '')
+}
+
 export function formatAmount(n) {
   return Number(n).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
+}
+
+// "MANILA (MNL), PHILIPPINES" → "MANILA"; plain names pass through unchanged
+function extractCityName(str) {
+  const parenIdx = str.indexOf(' (')
+  return parenIdx !== -1 ? str.slice(0, parenIdx).trim() : str.trim()
+}
+
+// Builds the DOCX route string: city names only, joined by /
+function computeRoute(routeType, airports) {
+  const stops = airports.map((a) => extractCityName(a)).filter(Boolean)
+  if (stops.length < 2) return stops.join('/')
+  if (routeType === 'round-trip') return [...stops, stops[0]].join('/')
+  return stops.join('/')
 }
 
 // ─── Document building helpers ─────────────────────────────────────────────────
@@ -55,7 +88,7 @@ function para(text, alignment = AlignmentType.LEFT) {
 }
 
 function cell(content, opts = {}) {
-  const { width, span, align = AlignmentType.LEFT, borders = ALL_BORDERS } = opts
+  const { width, span, align = AlignmentType.LEFT, borders = NO_BORDERS } = opts
   const children = Array.isArray(content) ? content : [para(content, align)]
   return new TableCell({
     children,
@@ -70,7 +103,11 @@ function fullRow(text) {
 }
 
 function makeTable(rows) {
-  return new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } })
+  return new Table({
+    rows,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: NO_TABLE_BORDERS,
+  })
 }
 
 // ─── Table builders ────────────────────────────────────────────────────────────
@@ -82,7 +119,7 @@ function buildHeaderTable({ clientName, date, address }) {
       cell(formatDate(date), { width: 40 }),
     ]}),
     new TableRow({ children: [
-      cell('', { width: 60, borders: NO_BORDERS }),
+      cell('', { width: 60 }),
       cell(address, { width: 40 }),
     ]}),
   ])
@@ -107,16 +144,20 @@ function buildMainTable(formData) {
     // Booking reference label
     rows.push(fullRow(refType))
 
-    // Booking reference values (one per passenger)
+    // Booking reference values (one per passenger; each refs[i] is string[])
     rows.push(new TableRow({ children: passengers.map((_, i) =>
-      cell(refs[i] || '', { width: paxWidth(i) })
+      cell((refs[i] || ['']).map(t => para(t)), { width: paxWidth(i) })
     )}))
 
     // Itinerary row: label | multi-paragraph content
+    const route = computeRoute(itinerary.routeType, itinerary.airports)
+    const flightLine = itinerary.flights
+      .map((f) => `${f.airline} ${f.flightNumber}`.trim())
+      .join('/')
     const itinParas = [
-      para(`${itinerary.airline} ${itinerary.flightNumber}`),
-      para(itinerary.route),
-      para(`${itinerary.travelDate}  ${itinerary.depTime}  ${itinerary.arrTime}`),
+      para(flightLine),
+      para(route),
+      para(`${formatItineraryDate(itinerary.travelDate)}  ${formatTime(itinerary.depTime)}  ${formatTime(itinerary.arrTime)}`),
       para(itinerary.travelClass),
     ]
     rows.push(new TableRow({ children: [
@@ -127,11 +168,11 @@ function buildMainTable(formData) {
 
   // Fee row: 6 columns, each cell has stacked paragraphs (one per fee item)
   rows.push(new TableRow({ children: [
-    cell(fees.map((f) => para(f.description)),                                               { width: 35 }),
-    cell(fees.map(() => para(currency)),                                                     { width: 8 }),
-    cell(fees.map((f) => para(formatAmount(f.unitAmount), AlignmentType.RIGHT)),             { width: 15 }),
-    cell(fees.map(() => para('X', AlignmentType.CENTER)),                                    { width: 7 }),
-    cell(fees.map((f) => para(String(f.qty), AlignmentType.CENTER)),                        { width: 8 }),
+    cell(fees.map((f) => para(f.description)),                                                          { width: 35 }),
+    cell(fees.map(() => para(currency)),                                                                { width: 8 }),
+    cell(fees.map((f) => para(formatAmount(f.unitAmount), AlignmentType.RIGHT)),                        { width: 15 }),
+    cell(fees.map(() => para('X', AlignmentType.CENTER)),                                               { width: 7 }),
+    cell(fees.map((f) => para(String(f.qty), AlignmentType.CENTER)),                                    { width: 8 }),
     cell(fees.map((f) => para(formatAmount(Number(f.unitAmount) * Number(f.qty)), AlignmentType.RIGHT)), { width: 27 }),
   ]}))
 
@@ -154,7 +195,7 @@ function buildTotalTable({ fees, currency }) {
   const total = fees.reduce((sum, f) => sum + Number(f.unitAmount) * Number(f.qty), 0)
   return makeTable([
     new TableRow({ children: [
-      cell('', { width: 60, borders: NO_BORDERS }),
+      cell('', { width: 60 }),
       cell(`${currency} ${formatAmount(total)}`, { width: 40, align: AlignmentType.RIGHT }),
     ]}),
     new TableRow({ children: [cell(amountToWords(total, currency))] }),

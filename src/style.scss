@@ -1,0 +1,456 @@
+// ── Variables ──────────────────────────────────────────────────────────────────
+
+// Colors
+$primary:        #2563eb;
+$primary-dark:   #1d4ed8;
+$primary-light:  #eff6ff;
+$primary-faded:  #93c5fd;
+$error:          #dc2626;
+$error-dark:     #991b1b;
+$border:         #ccc;
+$border-light:   #ddd;
+$border-lighter: #eee;
+$text:           #222;
+$text-muted:     #555;
+$text-subtle:    #888;
+$text-faint:     #999;
+$bg:             #f0f2f5;
+$white:          #fff;
+
+// Typography
+$font:        Arial, sans-serif;
+$fs-base:     14px;
+$fs-sm:       13px;
+$fs-xs:       12px;
+$fs-lg:       15px;
+$fs-xl:       16px;
+$fs-2xl:      24px;
+
+// Radii
+$radius:    4px;
+$radius-lg: 6px;
+
+// ── Reset ──────────────────────────────────────────────────────────────────────
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+// ── Base ───────────────────────────────────────────────────────────────────────
+
+body {
+  font-family: $font;
+  font-size: $fs-base;
+  background: $bg;
+  color: $text;
+}
+
+#app {
+  max-width: 860px;
+  margin: 32px auto;
+  padding: 0 16px 64px;
+}
+
+// ── App header ─────────────────────────────────────────────────────────────────
+
+.app-header {
+  margin-bottom: 24px;
+
+  h1 {
+    font-size: $fs-2xl;
+    margin-bottom: 4px;
+  }
+
+  p {
+    color: $text-muted;
+  }
+}
+
+// ── Form sections ──────────────────────────────────────────────────────────────
+
+.soa-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-section {
+  background: $white;
+  border: 1px solid $border-light;
+  border-radius: $radius-lg;
+  padding: 20px;
+
+  h2 {
+    font-size: $fs-base;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: $text-muted;
+    margin-bottom: 16px;
+    border-bottom: 1px solid $border-lighter;
+    padding-bottom: 8px;
+  }
+}
+
+.optional {
+  font-weight: normal;
+  text-transform: none;
+  color: $text-faint;
+}
+
+// ── Field rows ─────────────────────────────────────────────────────────────────
+
+.field-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: start;
+  gap: 8px;
+  margin-bottom: 12px;
+
+  label {
+    padding-top: 6px;
+    font-weight: bold;
+    font-size: $fs-sm;
+  }
+}
+
+// ── Form controls ──────────────────────────────────────────────────────────────
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+textarea,
+select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid $border;
+  border-radius: $radius;
+  font-size: $fs-base;
+  font-family: $font;
+}
+
+textarea {
+  resize: vertical;
+}
+
+// ── Toggle group ───────────────────────────────────────────────────────────────
+
+.toggle-group {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 2px solid $border;
+  border-radius: $radius;
+  cursor: pointer;
+  font-weight: bold;
+  transition: border-color 0.15s, background 0.15s;
+
+  input[type="radio"] {
+    display: none;
+  }
+
+  &.active {
+    border-color: $primary;
+    background: $primary-light;
+    color: $primary-dark;
+  }
+}
+
+// ── Passenger list ─────────────────────────────────────────────────────────────
+
+.passenger-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.passenger-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  > label {
+    width: 100px;
+    font-weight: bold;
+    font-size: $fs-sm;
+    flex-shrink: 0;
+  }
+}
+
+.passenger-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+
+  .pax-last,
+  .pax-first {
+    flex: 3;
+    min-width: 0;
+  }
+
+  .pax-sep {
+    font-weight: bold;
+    flex-shrink: 0;
+    color: $text-muted;
+  }
+
+  .pax-label {
+    width: 72px;
+    flex-shrink: 0;
+  }
+}
+
+// ── Fee table ──────────────────────────────────────────────────────────────────
+
+.fee-table {
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+  }
+
+  th,
+  td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid $border-lighter;
+  }
+
+  th {
+    font-size: $fs-xs;
+    text-transform: uppercase;
+    color: $text-subtle;
+  }
+
+  td {
+    input {
+      width: 100%;
+    }
+
+    &.total-cell {
+      text-align: right;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+  }
+}
+
+.fee-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.grand-total {
+  font-weight: bold;
+  font-size: $fs-lg;
+}
+
+// ── Itinerary section ──────────────────────────────────────────────────────────
+
+.itinerary-section {
+  fieldset {
+    border: 1px solid $border-light;
+    border-radius: $radius;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+
+  legend {
+    font-weight: bold;
+    font-size: $fs-sm;
+    padding: 0 4px;
+    color: $text-muted;
+  }
+
+  .ref-type {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.ref-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+
+  label {
+    font-size: $fs-sm;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &.ref-row-tickets {
+    align-items: start;
+  }
+}
+
+// ── Multi-ticket rows ──────────────────────────────────────────────────────────
+
+.ticket-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ticket-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+// ── Currency toggle inside Fee Items ──────────────────────────────────────────
+
+.currency-toggle {
+  margin-bottom: 16px;
+}
+
+// ── Multi-flight rows ──────────────────────────────────────────────────────────
+
+.flights-field-row {
+  align-items: start;
+}
+
+.flight-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flight-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+
+  .airline-input {
+    flex: 3;
+    min-width: 0;
+  }
+
+  .flight-num-input {
+    flex: 1;
+    min-width: 60px;
+  }
+}
+
+// ── Route input ────────────────────────────────────────────────────────────────
+
+.route-field-row {
+  align-items: start;
+}
+
+.route-input {
+  width: 100%;
+}
+
+.route-type-group {
+  margin-bottom: 10px;
+}
+
+.airport-stops {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.airport-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.airport-label {
+  font-size: $fs-sm;
+  font-weight: bold;
+  color: $text-muted;
+}
+
+.route-preview {
+  margin-top: 8px;
+  font-size: $fs-sm;
+  color: $primary;
+  font-style: italic;
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────────
+
+.btn-add {
+  background: none;
+  border: 1px dashed $primary;
+  color: $primary;
+  border-radius: $radius;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: $fs-sm;
+
+  &:hover {
+    background: $primary-light;
+  }
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: $error;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+
+  &:hover {
+    color: $error-dark;
+  }
+}
+
+.btn-generate {
+  padding: 12px 32px;
+  background: $primary;
+  color: $white;
+  border: none;
+  border-radius: $radius-lg;
+  font-size: $fs-xl;
+  font-weight: bold;
+  cursor: pointer;
+  align-self: flex-start;
+
+  &:disabled {
+    background: $primary-faded;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    background: $primary-dark;
+  }
+}
+
+// ── Error ──────────────────────────────────────────────────────────────────────
+
+.error-msg {
+  color: $error;
+  font-weight: bold;
+}

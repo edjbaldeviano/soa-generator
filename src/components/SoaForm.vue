@@ -1,7 +1,7 @@
 <template>
   <form class="soa-form" @submit.prevent="handleGenerate">
 
-    <!-- Type & Currency -->
+    <!-- Type -->
     <section class="form-section">
       <h2>Document Type</h2>
       <div class="toggle-group">
@@ -10,14 +10,6 @@
         </label>
         <label class="toggle-label" :class="{ active: form.type === 'visa' }">
           <input v-model="form.type" type="radio" value="visa" /> Visa
-        </label>
-      </div>
-      <div class="toggle-group">
-        <label class="toggle-label" :class="{ active: form.currency === 'PHP' }">
-          <input v-model="form.currency" type="radio" value="PHP" /> PHP
-        </label>
-        <label class="toggle-label" :class="{ active: form.currency === 'USD' }">
-          <input v-model="form.currency" type="radio" value="USD" /> USD
         </label>
       </div>
     </section>
@@ -53,7 +45,12 @@
     <!-- Passengers -->
     <section class="form-section">
       <h2>Passengers</h2>
-      <PassengerList :model-value="form.passengers" @update:model-value="updatePassengers" />
+      <PassengerList
+        :model-value="form.passengers"
+        @update:model-value="form.passengers = $event"
+        @remove="onPassengerRemove"
+        @add="form.refs.push([''])"
+      />
     </section>
 
     <!-- Airfare-only: Booking refs + Itinerary -->
@@ -63,13 +60,21 @@
         v-model="form.itinerary"
         v-model:ref-type="form.refType"
         v-model:refs="form.refs"
-        :passengers="form.passengers"
+        :passengers="passengerNames"
       />
     </section>
 
     <!-- Fee Line Items -->
     <section class="form-section">
       <h2>Fee Items</h2>
+      <div class="toggle-group currency-toggle">
+        <label class="toggle-label" :class="{ active: form.currency === 'PHP' }">
+          <input v-model="form.currency" type="radio" value="PHP" /> PHP
+        </label>
+        <label class="toggle-label" :class="{ active: form.currency === 'USD' }">
+          <input v-model="form.currency" type="radio" value="USD" /> USD
+        </label>
+      </div>
       <FeeTable v-model="form.fees" :default-qty="form.passengers.length" />
     </section>
 
@@ -91,7 +96,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { CLIENTS } from '../data/clients.js'
 import { generateSoa } from '../composables/useDocxGenerator.js'
 import PassengerList from './PassengerList.vue'
@@ -104,44 +109,36 @@ const form = reactive({
   clientName: '',
   address: '',
   date: '',
-  passengers: [''],
+  passengers: [{ lastName: '', firstName: '', label: 'MR' }],
   refType: 'Ticket No.',
-  refs: [''],
+  refs: [['']],
   itinerary: {
-    airline: '',
-    flightNumber: '',
-    route: '',
+    flights: [{ airline: '', flightNumber: '' }],
+    routeType: 'round-trip',
+    airports: ['', ''],
     travelDate: '',
     depTime: '',
     arrTime: '',
     travelClass: 'Economy Class',
   },
-  fees: [{ description: '', unitAmount: 0, qty: 1 }],
+  fees: [{ description: '', unitAmount: '', qty: 1 }],
   note: '',
 })
 
 const errorMsg = ref('')
 const generating = ref(false)
 
-function updatePassengers(newPassengers) {
-  const oldLen = form.passengers.length
-  const newLen = newPassengers.length
+function formatPassengerName(p) {
+  const last = p.lastName.trim().toUpperCase()
+  const first = p.firstName.trim().toUpperCase()
+  const lbl = p.label.trim().toUpperCase()
+  return [last, first ? `/${first}` : '', lbl ? ` ${lbl}` : ''].join('')
+}
 
-  if (newLen < oldLen) {
-    // Detect the removed index by finding first position where arrays diverge
-    let removedIdx = oldLen - 1
-    for (let i = 0; i < newLen; i++) {
-      if (newPassengers[i] !== form.passengers[i]) {
-        removedIdx = i
-        break
-      }
-    }
-    form.refs.splice(removedIdx, 1)
-  } else if (newLen > oldLen) {
-    form.refs.push('')
-  }
+const passengerNames = computed(() => form.passengers.map(formatPassengerName))
 
-  form.passengers = newPassengers
+function onPassengerRemove(i) {
+  form.refs.splice(i, 1)
 }
 
 function onClientSelect() {
@@ -152,12 +149,15 @@ function onClientSelect() {
 function validate() {
   if (!form.clientName.trim()) return 'Client name is required.'
   if (!form.date) return 'Date is required.'
-  if (form.passengers.some((p) => !p.trim())) return 'All passenger names must be filled in.'
+  if (form.passengers.some((p) => !p.lastName.trim())) return 'All passenger last names must be filled in.'
   if (form.type === 'airfare') {
-    if (!form.itinerary.airline.trim() || !form.itinerary.route.trim() || !form.itinerary.travelDate.trim()) {
-      return 'Airline, route, and travel date are required for airfare SOAs.'
+    if (form.itinerary.flights.some((f) => !f.airline.trim()) || !form.itinerary.travelDate) {
+      return 'All airline fields and travel date are required for airfare SOAs.'
     }
-    if (form.refs.some((r) => !r.trim())) return 'All booking references must be filled in.'
+    if (form.itinerary.airports.some((a) => !a.trim())) {
+      return 'All route airports must be filled in.'
+    }
+    if (form.refs.some((r) => r.some((t) => !t.trim()))) return 'All booking references must be filled in.'
   }
   if (form.fees.length === 0) return 'At least one fee row is required.'
   if (form.fees.some((f) => !f.description.trim())) return 'All fee descriptions must be filled in.'
@@ -170,7 +170,7 @@ async function handleGenerate() {
 
   generating.value = true
   try {
-    await generateSoa({ ...form })
+    await generateSoa({ ...form, passengers: passengerNames.value })
   } catch (err) {
     errorMsg.value = 'Failed to generate document: ' + err.message
   } finally {

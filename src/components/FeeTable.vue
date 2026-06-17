@@ -23,10 +23,10 @@
           <td>
             <input
               :value="row.unitAmount"
-              type="number"
-              min="0"
-              step="0.01"
-              @input="updateRow(i, 'unitAmount', parseFloat($event.target.value) || 0)"
+              type="text"
+              inputmode="decimal"
+              placeholder="0.00"
+              @input="updateRow(i, 'unitAmount', $event.target.value)"
             />
           </td>
           <td>
@@ -86,7 +86,7 @@ function updateRow(i, field, value) {
 function addRow() {
   emit('update:modelValue', [
     ...props.modelValue,
-    { description: '', unitAmount: 0, qty: props.defaultQty },
+    { description: '', unitAmount: '', qty: props.defaultQty },
   ])
 }
 
