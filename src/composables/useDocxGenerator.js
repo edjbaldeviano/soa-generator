@@ -1,6 +1,6 @@
 import {
   Document, Table, TableRow, TableCell, Paragraph, TextRun,
-  WidthType, AlignmentType, BorderStyle, convertMillimetersToTwip,
+  WidthType, AlignmentType, BorderStyle, HeightRule, convertMillimetersToTwip,
   Packer, PageOrientation,
 } from 'docx'
 import { saveAs } from 'file-saver'
@@ -79,22 +79,33 @@ function computeRoute(routeType, airports) {
 
 // ─── Document building helpers ─────────────────────────────────────────────────
 
-function run(text) {
-  return new TextRun({ text: String(text ?? ''), font: FONT, bold: true, size: FONT_SIZE })
+function run(text, bold = true) {
+  return new TextRun({ text: String(text ?? ''), font: FONT, bold, size: FONT_SIZE })
 }
 
-function para(text, alignment = AlignmentType.LEFT) {
-  return new Paragraph({ children: [run(text)], alignment })
+function para(text, alignment = AlignmentType.LEFT, bold = true) {
+  return new Paragraph({ children: [run(text, bold)], alignment })
 }
 
 function cell(content, opts = {}) {
-  const { width, span, align = AlignmentType.LEFT, borders = NO_BORDERS } = opts
-  const children = Array.isArray(content) ? content : [para(content, align)]
-  return new TableCell({
+  const { width, span, align = AlignmentType.LEFT, borders = NO_BORDERS, height, bold = true } = opts
+  const children = Array.isArray(content) ? content : [para(content, align, bold)]
+  const c = new TableCell({
     children,
     ...(width !== undefined ? { width: { size: width, type: WidthType.PERCENTAGE } } : {}),
     ...(span !== undefined ? { columnSpan: span } : {}),
     borders,
+  })
+  if (height !== undefined) c._height = height
+  return c
+}
+
+// Creates a TableRow, picking up height (in twips) from any cell's _height property.
+function row(cells, opts = {}) {
+  const height = opts.height ?? cells.find(c => c._height !== undefined)?._height
+  return new TableRow({
+    children: cells,
+    ...(height !== undefined ? { height: { value: height, rule: HeightRule.ATLEAST } } : {}),
   })
 }
 
@@ -112,17 +123,28 @@ function makeTable(rows) {
 
 // ─── Table builders ────────────────────────────────────────────────────────────
 
-function buildHeaderTable({ clientName, date, address }) {
+function buildClientRow({ clientName, date }) {
   return makeTable([
     new TableRow({ children: [
       cell(clientName, { width: 60 }),
       cell(formatDate(date), { width: 40 }),
     ]}),
+  ])
+}
+
+function buildAddressRow({ address }) {
+  return makeTable([
     new TableRow({ children: [
-      cell('', { width: 60 }),
-      cell(address, { width: 40 }),
+      cell(address, { width: 100 }),
     ]}),
   ])
+}
+
+function effectiveRefLabel(refType, refs) {
+  const total = refs.reduce((sum, r) => sum + r.length, 0)
+  if (refType === 'Ticket No.') return total > 1 ? 'Ticket Nos.' : 'Ticket No.'
+  if (refType === 'Booking Reference No.') return total > 1 ? 'Booking Reference Nos.' : 'Booking Reference No.'
+  return refType
 }
 
 function buildMainTable(formData) {
@@ -137,16 +159,16 @@ function buildMainTable(formData) {
 
   // Passenger name cells
   rows.push(new TableRow({ children: passengers.map((name, i) =>
-    cell(name, { width: paxWidth(i) })
+    cell(name, { width: paxWidth(i), bold: false })
   )}))
 
   if (type === 'airfare') {
-    // Booking reference label
-    rows.push(fullRow(refType))
+    // Booking reference label (auto-pluralised based on total ref count)
+    rows.push(fullRow(effectiveRefLabel(refType, refs)))
 
     // Booking reference values (one per passenger; each refs[i] is string[])
     rows.push(new TableRow({ children: passengers.map((_, i) =>
-      cell((refs[i] || ['']).map(t => para(t)), { width: paxWidth(i) })
+      cell((refs[i] || ['']).map(t => para(t, AlignmentType.LEFT, false)), { width: paxWidth(i) })
     )}))
 
     // Itinerary row: label | multi-paragraph content
@@ -155,10 +177,10 @@ function buildMainTable(formData) {
       .map((f) => `${f.airline} ${f.flightNumber}`.trim())
       .join('/')
     const itinParas = [
-      para(flightLine),
-      para(route),
-      para(`${formatItineraryDate(itinerary.travelDate)}  ${formatTime(itinerary.depTime)}  ${formatTime(itinerary.arrTime)}`),
-      para(itinerary.travelClass),
+      para(flightLine, AlignmentType.LEFT, false),
+      para(route, AlignmentType.LEFT, false),
+      para(`${formatItineraryDate(itinerary.travelDate)} ${formatTime(itinerary.depTime)} ${formatTime(itinerary.arrTime)}`, AlignmentType.LEFT, false),
+      para(itinerary.travelClass, AlignmentType.LEFT, false),
     ]
     rows.push(new TableRow({ children: [
       cell('Itinerary:', { width: 15 }),
@@ -168,16 +190,16 @@ function buildMainTable(formData) {
 
   // Fee row: 6 columns, each cell has stacked paragraphs (one per fee item)
   rows.push(new TableRow({ children: [
-    cell(fees.map((f) => para(f.description)),                                                          { width: 35 }),
-    cell(fees.map(() => para(currency)),                                                                { width: 8 }),
-    cell(fees.map((f) => para(formatAmount(f.unitAmount), AlignmentType.RIGHT)),                        { width: 15 }),
-    cell(fees.map(() => para('X', AlignmentType.CENTER)),                                               { width: 7 }),
-    cell(fees.map((f) => para(String(f.qty), AlignmentType.CENTER)),                                    { width: 8 }),
-    cell(fees.map((f) => para(formatAmount(Number(f.unitAmount) * Number(f.qty)), AlignmentType.RIGHT)), { width: 27 }),
+    cell(fees.map((f) => para(f.description, AlignmentType.LEFT, false)), { width: 35 }),
+    cell(fees.map(() => para(currency, AlignmentType.LEFT, false)), { width: 8 }),
+    cell(fees.map((f) => para(formatAmount(f.unitAmount), AlignmentType.RIGHT, false)), { width: 15 }),
+    cell(fees.map(() => para('X', AlignmentType.CENTER, false)), { width: 7 }),
+    cell(fees.map((f) => para(String(f.qty), AlignmentType.CENTER, false)), { width: 8 }),
+    cell(fees.map((f) => para(formatAmount(Number(f.unitAmount) * Number(f.qty)), AlignmentType.RIGHT, false)), { width: 27 }),
   ]}))
 
   // Nothing Follows
-  rows.push(fullRow('***** Nothing Follows *****'))
+  rows.push(new TableRow({ children: [cell('***** Nothing Follows *****', { bold: false })] }))
 
   return makeTable(rows)
 }
@@ -198,15 +220,15 @@ function buildTotalTable({ fees, currency }) {
       cell('', { width: 60 }),
       cell(`${currency} ${formatAmount(total)}`, { width: 40, align: AlignmentType.RIGHT }),
     ]}),
-    new TableRow({ children: [cell(amountToWords(total, currency))] }),
+    new TableRow({ children: [cell(amountToWords(total, currency), { bold: false })] }),
   ])
 }
 
 function buildSignatureTable() {
   return makeTable([
     new TableRow({ children: [
-      cell('EDWARD DANIEL J. BALDEVIANO', { width: 50 }),
-      cell('ELENA J. BALDEVIANO', { width: 50 }),
+      cell('EDWARD DANIEL J. BALDEVIANO', { width: 50, bold: false }),
+      cell('ELENA J. BALDEVIANO', { width: 50, bold: false }),
     ]}),
   ])
 }
@@ -215,7 +237,8 @@ function buildSignatureTable() {
 
 export async function generateSoa(formData) {
   const tables = [
-    buildHeaderTable(formData),
+    buildClientRow(formData),
+    buildAddressRow(formData),
     buildMainTable(formData),
   ]
   if (formData.note && formData.note.trim()) {

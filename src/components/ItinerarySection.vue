@@ -143,8 +143,8 @@ import { computed } from 'vue'
 import { AIRLINES } from '../data/airlines.js'
 import RouteInput from './RouteInput.vue'
 
-const REF_TYPE_OPTIONS = ['Ticket No.', 'Ticket Nos.', 'Booking Reference No.', 'Booking Reference Nos.']
-const TICKET_TYPES = new Set(['Ticket No.', 'Ticket Nos.'])
+const REF_TYPE_OPTIONS = ['Ticket No.', 'Booking Reference No.']
+const TICKET_TYPES = new Set(['Ticket No.'])
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
