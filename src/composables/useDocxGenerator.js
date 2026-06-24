@@ -1,6 +1,6 @@
 import {
   Document, Table, TableRow, TableCell, Paragraph, TextRun,
-  WidthType, AlignmentType, BorderStyle, HeightRule, convertMillimetersToTwip,
+  WidthType, AlignmentType, BorderStyle, HeightRule, VerticalAlign, convertMillimetersToTwip,
   Packer, PageOrientation,
 } from 'docx'
 import { saveAs } from 'file-saver'
@@ -48,7 +48,7 @@ export function formatDate(dateStr) {
 function formatItineraryDate(dateStr) {
   if (!dateStr) return ''
   const [, month, day] = dateStr.split('-').map(Number)
-  return `${SHORT_MONTHS[month - 1]} ${day}`
+  return `${SHORT_MONTHS[month - 1]} ${String(day).padStart(2, '0')}`
 }
 
 // Converts HH:MM (from <input type="time">) → "HHMM"
@@ -88,12 +88,13 @@ function para(text, alignment = AlignmentType.LEFT, bold = true) {
 }
 
 function cell(content, opts = {}) {
-  const { width, span, align = AlignmentType.LEFT, borders = NO_BORDERS, height, bold = true } = opts
+  const { width, span, align = AlignmentType.LEFT, borders = NO_BORDERS, height, bold = true, verticalAlign } = opts
   const children = Array.isArray(content) ? content : [para(content, align, bold)]
   const c = new TableCell({
     children,
     ...(width !== undefined ? { width: { size: width, type: WidthType.PERCENTAGE } } : {}),
     ...(span !== undefined ? { columnSpan: span } : {}),
+    ...(verticalAlign !== undefined ? { verticalAlign } : {}),
     borders,
   })
   if (height !== undefined) c._height = height
@@ -125,18 +126,18 @@ function makeTable(rows) {
 
 function buildClientRow({ clientName, date }) {
   return makeTable([
-    new TableRow({ children: [
-      cell(clientName, { width: 60 }),
-      cell(formatDate(date), { width: 40 }),
-    ]}),
+    row([
+      cell(clientName, { width: 60, verticalAlign: VerticalAlign.BOTTOM }),
+      cell(formatDate(date), { width: 40, verticalAlign: VerticalAlign.BOTTOM }),
+    ], { height: 2178 }), // 1.5125 inches (2178 twips)
   ])
 }
 
 function buildAddressRow({ address }) {
   return makeTable([
-    new TableRow({ children: [
-      cell(address, { width: 100 }),
-    ]}),
+    row([
+      cell(address, { width: 100, verticalAlign: VerticalAlign.BOTTOM }),
+    ], { height: 530 }),
   ])
 }
 
@@ -155,12 +156,15 @@ function buildMainTable(formData) {
   const rows = []
 
   // Passenger(s) header
-  rows.push(fullRow('Passenger(s)'))
+  rows.push(row([
+    cell('Passenger(s)', { verticalAlign: VerticalAlign.BOTTOM })
+  ], { height: 2080 }))
 
   // Passenger name cells
   rows.push(new TableRow({ children: passengers.map((name, i) =>
     cell(name, { width: paxWidth(i), bold: false })
   )}))
+  rows.push(fullRow(''))
 
   if (type === 'airfare') {
     // Booking reference label (auto-pluralised based on total ref count)
@@ -170,6 +174,7 @@ function buildMainTable(formData) {
     rows.push(new TableRow({ children: passengers.map((_, i) =>
       cell((refs[i] || ['']).map(t => para(t, AlignmentType.LEFT, false)), { width: paxWidth(i) })
     )}))
+    rows.push(fullRow(''))
 
     // Itinerary row: label | multi-paragraph content
     const route = computeRoute(itinerary.routeType, itinerary.airports)
@@ -186,6 +191,7 @@ function buildMainTable(formData) {
       cell('Itinerary:', { width: 15 }),
       cell(itinParas, { width: 85 }),
     ]}))
+    rows.push(fullRow(''))
   }
 
   // Fee row: 6 columns, each cell has stacked paragraphs (one per fee item)
@@ -197,9 +203,10 @@ function buildMainTable(formData) {
     cell(fees.map((f) => para(String(f.qty), AlignmentType.CENTER, false)), { width: 8 }),
     cell(fees.map((f) => para(formatAmount(Number(f.unitAmount) * Number(f.qty)), AlignmentType.RIGHT, false)), { width: 27 }),
   ]}))
+  rows.push(fullRow(''))
 
   // Nothing Follows
-  rows.push(new TableRow({ children: [cell('***** Nothing Follows *****', { bold: false })] }))
+  rows.push(new TableRow({ children: [cell('***** Nothing Follows *****', { bold: false, align: AlignmentType.CENTER })] }))
 
   return makeTable(rows)
 }
@@ -244,7 +251,9 @@ export async function generateSoa(formData) {
   if (formData.note && formData.note.trim()) {
     tables.push(buildNoteTable(formData.note))
   }
+  tables.push(makeTable([fullRow('')]))
   tables.push(buildTotalTable(formData))
+  tables.push(makeTable([fullRow('')]))
   tables.push(buildSignatureTable())
 
   const doc = new Document({
